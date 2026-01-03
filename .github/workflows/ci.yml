@@ -2,8 +2,9 @@ name: CI Advanced
 
 on:
   push:
-    paths:
-      - 'MLProject/**'
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   advanced:

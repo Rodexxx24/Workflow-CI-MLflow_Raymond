@@ -6,19 +6,21 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 def main():
-    # ========================
-    # AKTIFKAN AUTOLOG
-    # ========================
-    mlflow.sklearn.autolog()
+    print("[INFO] MLflow CI Training started")
 
     # ========================
-    # SET TRACKING URI (Lokal / CI / Remote)
+    # SET TRACKING URI
     # ========================
-    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "file:./mlruns")
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "file:./mlruns")
+    mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment("LogisticRegression_Basic")
 
-    print(f"[INFO] MLflow Tracking URI: {MLFLOW_TRACKING_URI}")
+    print(f"[INFO] MLflow Tracking URI: {tracking_uri}")
+
+    # ========================
+    # AUTOLOG (WAJIB)
+    # ========================
+    mlflow.sklearn.autolog()
 
     # ========================
     # LOAD DATA
@@ -27,39 +29,29 @@ def main():
     test_df  = pd.read_csv("dataset_preprocessing/credit_test_preprocessed.csv")
 
     target_column = "default"
-
     X_train = train_df.drop(columns=[target_column])
     y_train = train_df[target_column]
-
-    X_test = test_df.drop(columns=[target_column])
-    y_test = test_df[target_column]
+    X_test  = test_df.drop(columns=[target_column])
+    y_test  = test_df[target_column]
 
     # ========================
     # TRAINING
     # ========================
-    with mlflow.start_run(run_name="LogisticRegression_Basic"):
-        print("[INFO] Training Logistic Regression...")
+    print("[INFO] Training Logistic Regression...")
+    model = LogisticRegression(max_iter=1000)
+    model.fit(X_train, y_train)
 
-        model = LogisticRegression(max_iter=1000)
-        model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
 
-        y_pred = model.predict(X_test)
+    # ========================
+    # MANUAL METRICS (PELENGKAP)
+    # ========================
+    mlflow.log_metric("accuracy_manual", accuracy_score(y_test, y_pred))
+    mlflow.log_metric("precision_manual", precision_score(y_test, y_pred))
+    mlflow.log_metric("recall_manual", recall_score(y_test, y_pred))
+    mlflow.log_metric("f1_score_manual", f1_score(y_test, y_pred))
 
-        # ========================
-        # MANUAL METRICS (pelengkap autolog)
-        # ========================
-        acc  = accuracy_score(y_test, y_pred)
-        prec = precision_score(y_test, y_pred)
-        rec  = recall_score(y_test, y_pred)
-        f1   = f1_score(y_test, y_pred)
-
-        mlflow.log_metric("accuracy_manual", acc)
-        mlflow.log_metric("precision_manual", prec)
-        mlflow.log_metric("recall_manual", rec)
-        mlflow.log_metric("f1_score_manual", f1)
-
-        print("[INFO] Training selesai & model tersimpan di MLflow")
+    print("[SUCCESS] Training selesai & artefak tersimpan di MLflow")
 
 if __name__ == "__main__":
-    print("[INFO] MLflow CI Training started")
     main()

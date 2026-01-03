@@ -30,6 +30,11 @@ jobs:
 
       - name: Login to Docker Hub
         run: |
+          if [ -z "${{ secrets.DOCKER_USERNAME }}" ]; then
+            echo "DOCKER_USERNAME secret is empty"
+            exit 1
+          fi
+
           echo "${{ secrets.DOCKER_PASSWORD }}" | docker login \
             -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 

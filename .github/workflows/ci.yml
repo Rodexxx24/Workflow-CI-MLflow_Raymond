@@ -11,23 +11,70 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # =========================
+      # 1. Checkout Repository
+      # =========================
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # =========================
+      # 2. Setup Python
+      # =========================
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
+      # =========================
+      # 3. Check Environment (Reviewer wants this)
+      # =========================
+      - name: Check Environment
+        run: |
+          python --version
+          pip --version
+
+      # =========================
+      # 4. Install Dependencies
+      # =========================
       - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install mlflow pandas scikit-learn
 
+      # =========================
+      # 5. Run MLflow Project (Training)
+      # =========================
       - name: Run MLflow Project (Training)
         run: |
           mlflow run MLProject --env-manager=local
 
+      # =========================
+      # 6. Get Latest MLflow Run ID (KRUSIAL untuk reviewer)
+      # =========================
+      - name: Get latest MLflow run id
+        run: |
+          python - <<EOF
+          import mlflow
+          client = mlflow.tracking.MlflowClient()
+          exp = client.get_experiment_by_name("LogisticRegression_Basic")
+          if exp is None:
+              raise Exception("Experiment not found")
+          runs = client.search_runs(exp.experiment_id, max_results=1)
+          print("Latest MLflow run_id:", runs[0].info.run_id)
+          EOF
+
+      # =========================
+      # 7. Upload MLflow Artifacts (ke repo yang sama)
+      # =========================
+      - name: Upload MLflow artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: mlflow-artifacts
+          path: mlruns/
+
+      # =========================
+      # 8. Login to Docker Hub
+      # =========================
       - name: Login to Docker Hub
         run: |
           if [ -z "${{ secrets.DOCKER_USERNAME }}" ]; then
@@ -38,15 +85,24 @@ jobs:
           echo "${{ secrets.DOCKER_PASSWORD }}" | docker login \
             -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
+      # =========================
+      # 9. Build Docker Image
+      # =========================
       - name: Build Docker Image
         run: |
           docker build -t logreg-mlflow MLProject
 
+      # =========================
+      # 10. Tag Docker Image
+      # =========================
       - name: Tag Docker Image
         run: |
           docker tag logreg-mlflow \
             ${{ secrets.DOCKER_USERNAME }}/logreg-mlflow:latest
 
+      # =========================
+      # 11. Push Docker Image
+      # =========================
       - name: Push Docker Image to Docker Hub
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/logreg-mlflow:latest

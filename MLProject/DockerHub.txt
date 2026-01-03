@@ -1,0 +1,1 @@
+https://hub.docker.com/r/raymondthymotimannuel11/logreg-mlflow

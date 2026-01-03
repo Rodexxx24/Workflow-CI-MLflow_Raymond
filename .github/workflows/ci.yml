@@ -1,9 +1,8 @@
-name: CI Advanced
+name: CI Advanced (MLflow + Docker)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -11,98 +10,57 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # =========================
-      # 1. Checkout Repository
-      # =========================
+      # 1. Checkout
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # =========================
       # 2. Setup Python
-      # =========================
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # =========================
-      # 3. Check Environment (Reviewer wants this)
-      # =========================
-      - name: Check Environment
+      # 3. Install dependencies
+      - name: Install Python dependencies
         run: |
-          python --version
-          pip --version
-
-      # =========================
-      # 4. Install Dependencies
-      # =========================
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install mlflow pandas scikit-learn
 
-      # =========================
-      # 5. Run MLflow Project (Training)
-      # =========================
-      - name: Run MLflow Project (Training)
+      # 4. Run MLflow Project (Training)
+      - name: Run MLflow Project
         run: |
           mlflow run MLProject --env-manager=local
 
-      # =========================
-      # 6. Get Latest MLflow Run ID (KRUSIAL untuk reviewer)
-      # =========================
-      - name: Get latest MLflow run id
+      # 5. Get latest MLflow run ID
+      - name: Get latest MLflow run ID
         run: |
-          python - <<EOF
-          import mlflow
-          client = mlflow.tracking.MlflowClient()
-          exp = client.get_experiment_by_name("LogisticRegression_Basic")
-          if exp is None:
-              raise Exception("Experiment not found")
-          runs = client.search_runs(exp.experiment_id, max_results=1)
-          print("Latest MLflow run_id:", runs[0].info.run_id)
-          EOF
+          echo "RUN_ID=$(ls -td mlruns/*/* | head -1 | awk -F'/' '{print $(NF-1)}')" >> $GITHUB_ENV
 
-      # =========================
-      # 7. Upload MLflow Artifacts (ke repo yang sama)
-      # =========================
+      # 6. Upload MLflow artifacts to GitHub Repository
       - name: Upload MLflow artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mlflow-artifacts
           path: mlruns/
 
-      # =========================
-      # 8. Login to Docker Hub
-      # =========================
+      # 7. Login to Docker Hub
       - name: Login to Docker Hub
         run: |
-          if [ -z "${{ secrets.DOCKER_USERNAME }}" ]; then
-            echo "DOCKER_USERNAME secret is empty"
-            exit 1
-          fi
-
           echo "${{ secrets.DOCKER_PASSWORD }}" | docker login \
             -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      # =========================
-      # 9. Build Docker Image
-      # =========================
+      # 8. Build Docker Image
       - name: Build Docker Image
         run: |
           docker build -t logreg-mlflow MLProject
 
-      # =========================
-      # 10. Tag Docker Image
-      # =========================
+      # 9. Tag Docker Image
       - name: Tag Docker Image
         run: |
           docker tag logreg-mlflow \
             ${{ secrets.DOCKER_USERNAME }}/logreg-mlflow:latest
 
-      # =========================
-      # 11. Push Docker Image
-      # =========================
+      # 10. Push Docker Image
       - name: Push Docker Image to Docker Hub
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/logreg-mlflow:latest
